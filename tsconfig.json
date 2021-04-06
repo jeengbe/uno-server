@@ -1,8 +1,10 @@
 {
   "compilerOptions": {
-    "module": "esnext",
+    "moduleResolution": "node",
+    "target": "es5",
     "strict": true,
-    "outDir": "./build"
-  },
-
+    "outDir": "./build",
+    "types": ["node"],
+    "allowSyntheticDefaultImports": true
+  }
 }
