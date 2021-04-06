@@ -1,0 +1,23 @@
+{
+  "name": "uno-server",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "tsc --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jeengbe/uno-server.git"
+  },
+  "author": "jeengbe",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/jeengbe/uno-server/issues"
+  },
+  "homepage": "https://github.com/jeengbe/uno-server#readme",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^4.21.0",
+    "@typescript-eslint/parser": "^4.21.0",
+    "eslint": "^7.23.0",
+    "typescript": "^4.2.3"
+  }
+}
