@@ -24,6 +24,7 @@
     "typescript": "^4.2.3"
   },
   "dependencies": {
+    "source-map-support": "^0.5.19",
     "ws": "^7.4.4"
   }
 }

@@ -1,10 +1,13 @@
 {
   "compilerOptions": {
     "moduleResolution": "node",
+    "sourceMap": true,
     "target": "es5",
     "strict": true,
     "outDir": "./build",
     "types": ["node"],
-    "allowSyntheticDefaultImports": true
-  }
+    "allowSyntheticDefaultImports": true,
+    "downlevelIteration": true
+  },
+  "include": ["./src/index.ts", "./../Uno.d.ts"]
 }
