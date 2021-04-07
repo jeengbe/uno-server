@@ -3,7 +3,7 @@ import { Player } from "./Player";
 export class Match {
   public readonly ID: number;
   private name: string;
-  private players: Map<number, Player>;
+  private players: Player[];
   public isRunning: boolean;
 
   /**
@@ -35,7 +35,7 @@ export class Match {
   constructor(ID: number) {
     this.ID = ID;
     this.name = "Unnamed match";
-    this.players = new Map();
+    this.players = [];
     this.stack = [];
     this.hands = new Map();
     this.turn = 0;
@@ -61,7 +61,8 @@ export class Match {
     return {
       ID: this.ID,
       name: this.name,
-      isMaster: this.master?.ID === player.ID
+      isMaster: this.master?.ID === player.ID,
+      players: this.players.filter(p => p.ID !== player.ID).map(p => p.getData())
     };
   }
 
@@ -92,7 +93,7 @@ export class Match {
       this.master = player;
     }
 
-    this.players.set(player.ID, player);
+    this.players.push(player);
     this.hands.set(player.ID, []);
 
     this.broadcast({
@@ -105,11 +106,17 @@ export class Match {
   }
 
   public removePlayer(player: Player): void {
+    this.players.splice(this.players.indexOf(player), 1);
+
     if (this.master?.ID === player.ID) {
-      this.master = this.players.keys().next().value;
+      this.master = this.players[0] || null;
+
+      this.master?.send({
+        method: "EVENT",
+        event: "PROMOTE"
+      });
     }
 
-    this.players.delete(player.ID);
     this.hands.delete(player.ID);
 
     this.broadcast({
@@ -130,7 +137,12 @@ export class Match {
       for (let value = 0; value < 15; value++) {
         this.drawStack.push(color << 4 | value);
       }
+      for (let value = 1; value < 14; value++) {
+        this.drawStack.push(color << 4 | value);
+      }
     }
+
+
 
     const startingCard = this.getRandomCardFromDrawStack();
     // Generate a random card to start the game with (0-9, all colors)
@@ -146,6 +158,8 @@ export class Match {
         cards: this.hands.get(player.ID)!
       }
     }));
+
+    this.isRunning = true;
   }
 
   /**

@@ -21,7 +21,9 @@ export class MatchHandler {
   public listMatches(): MatchDataPublic[] {
     const data = [];
     for (const match of this.matchList.values()) {
-      data.push(match.getDataPublic());
+      if (!match.isRunning) {
+        data.push(match.getDataPublic());
+      }
     }
     return data;
   }

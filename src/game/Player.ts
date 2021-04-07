@@ -95,6 +95,9 @@ export class Player {
     // Attach miscellaneous handlers
     // List all available matches
     this.methodHandlers.set("LIST_MATCHES", () => {
+      // At this point, remove the player from their game, since they obviously left the game
+      this.game.matchHandler.removePlayerFromCurrentMatch(this);
+
       this.send({
         method: "LIST_MATCHES",
         data: {
@@ -110,10 +113,9 @@ export class Player {
       if (!("matchID" in data)) return this.kick("Missing key 'matchID'");
       if (typeof data.matchID !== "number") return this.kick("Invalid 'matchID' type");
 
-      this.game.matchHandler.removePlayerFromCurrentMatch(this);
-
       const match = this.game.matchHandler.getMatch(data.matchID);
       if (match === null) return this.kick("Invalid 'matchID'");
+      if (match.isRunning) return this.kick("Match already running");
 
       this.game.matchHandler.addPlayerToMatch(this, match);
       this.currentMatch = match;
@@ -164,7 +166,7 @@ export class Player {
   }
 
   private kick(reason?: string): false {
-    console.log("Kick client" + (typeof reason !== undefined ? " with reason: " + reason : ""));
+    console.log(chalk.underline("Kick Client (" + this.ID + ")" + (typeof reason !== undefined ? " with reason: " + reason : "")));
     this.socket.close();
     return false;
   }

@@ -23,7 +23,9 @@ export class Game {
     this.matchHandler.addMatch(new Match(0));
     this.matchHandler.addMatch(new Match(2));
     this.matchHandler.addMatch(new Match(1));
-    this.matchHandler.getMatch(1)?.setName("My match");
+    this.matchHandler.getMatch(0)?.setName("My match 0");
+    this.matchHandler.getMatch(1)?.setName("My match 1");
+    this.matchHandler.getMatch(2)?.setName("My match 2");
 
     this.socket.on("connection", this.onConnection.bind(this));
   }
@@ -41,7 +43,7 @@ export class Game {
   }
 
   public checkUsername(username: string): boolean {
-    return username === "Jesper";
+    return true;
   }
 
   private getNextPlayerID() {
