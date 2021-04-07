@@ -1,4 +1,5 @@
 import * as WebSocket from "ws";
+import * as chalk from "chalk";
 import { Game } from "./Game";
 import { Match } from "./Match";
 
@@ -26,7 +27,7 @@ export class Player {
     socket.onmessage = e => {
       try {
         const message = JSON.parse(e.data.toString());
-        console.log("\nMessage received: ");
+        console.log(chalk.underline("\n\nServer <- Client"));
         console.dir(message, { depth: null });
         if (typeof message !== "object" || Array.isArray(message) || message === null) return this.kick("Invalid message");
 
@@ -52,7 +53,7 @@ export class Player {
    * Send a message to the client
    */
   public send(message: Protocol.ServerToClient): void {
-    console.log("\nSend message:");
+    console.log(chalk.underline("\nServer -> Client"));
     console.dir(message, { depth: null });
     this.socket?.send(JSON.stringify(message));
   }
@@ -115,6 +116,7 @@ export class Player {
       if (match === null) return this.kick("Invalid 'matchID'");
 
       this.game.matchHandler.addPlayerToMatch(this, match);
+      this.currentMatch = match;
 
       this.send({
         method: "JOIN_MATCH"

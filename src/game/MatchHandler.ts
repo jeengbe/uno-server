@@ -39,6 +39,6 @@ export class MatchHandler {
    */
   public addPlayerToMatch(player: Player, match: Match): void {
     this.playerMatchList.set(player.ID, match);
+    match.addPlayer(player);
   }
-
 }

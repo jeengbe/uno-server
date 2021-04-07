@@ -16,7 +16,7 @@ export class Match {
    */
   public getDataPublic(): MatchDataPublic {
     return {
-      ID: this.ID.toString(16),
+      ID: this.ID,
       name: this.name
     };
   }
@@ -26,9 +26,8 @@ export class Match {
    */
   public getDataMatch(): MatchDataMatch {
     return {
-      ID: this.ID.toString(16),
+      ID: this.ID,
       name: this.name,
-
     };
   }
 
@@ -36,8 +35,11 @@ export class Match {
     this.name = name;
   }
 
-  private broadcast(message: Protocol.ServerToClient) {
+  private broadcast(message: Protocol.ServerToClient, except?: Player) {
     for (const player of this.players.values()) {
+      if (typeof except !== "undefined") {
+        if (player.ID === except.ID) continue;
+      }
       player.send(message);
     }
   }
@@ -51,7 +53,7 @@ export class Match {
       data: {
         player: player.getData()
       }
-    });
+    }, player);
   }
 
   public removePlayer(player: Player): void {
@@ -63,6 +65,6 @@ export class Match {
       data: {
         playerID: player.ID
       }
-    });
+    }, player);
   }
 }
