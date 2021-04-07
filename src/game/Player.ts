@@ -27,7 +27,7 @@ export class Player {
     socket.onmessage = e => {
       try {
         const message = JSON.parse(e.data.toString());
-        console.log(chalk.underline("\n\nServer <- Client"));
+        console.log(chalk.underline(`\n\nServer <- Client (${this.ID})`));
         console.dir(message, { depth: null });
         if (typeof message !== "object" || Array.isArray(message) || message === null) return this.kick("Invalid message");
 
@@ -53,7 +53,7 @@ export class Player {
    * Send a message to the client
    */
   public send(message: Protocol.ServerToClient): void {
-    console.log(chalk.underline("\nServer -> Client"));
+    console.log(chalk.underline(`\nServer -> Client (${this.ID})`));
     console.dir(message, { depth: null });
     this.socket?.send(JSON.stringify(message));
   }
@@ -127,14 +127,27 @@ export class Player {
      * Load data for the current match
      */
     this.methodHandlers.set("LOAD_MATCH_DATA", () => {
-      if (this.currentMatch === null) return this.kick("Not in match");
+      if (this.currentMatch === null) return this.kick("Not in a match");
 
       this.send({
         method: "LOAD_MATCH_DATA",
         data: {
-          match: this.currentMatch.getDataMatch()
+          match: this.currentMatch.getDataWaiting(this)
         }
       });
+    });
+
+    /**
+     * Start the currently playing match
+     */
+    this.methodHandlers.set("START_MATCH", () => {
+      if (this.currentMatch === null) return this.kick("Not in a match");
+      if (this.currentMatch.isRunning) return this.kick("Already running");
+
+      this.send({
+        method: "START_MATCH"
+      });
+      this.currentMatch.start();
     });
   }
 
