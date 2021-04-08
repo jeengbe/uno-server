@@ -2,6 +2,8 @@
   "name": "uno-server",
   "version": "1.0.0",
   "scripts": {
+    "build": "tsc",
+    "run": "node ./Build/index.js",
     "dev": "tsc --watch",
     "nodemon": "nodemon ./Build/index.js"
   },
