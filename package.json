@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "scripts": {
     "build": "tsc",
-    "run": "node ./Build/index.js",
+    "run": "node ./build/index.js",
     "dev": "tsc --watch",
-    "nodemon": "nodemon ./Build/index.js"
+    "nodemon": "nodemon ./build/index.js"
   },
   "repository": {
     "type": "git",
