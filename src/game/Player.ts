@@ -6,22 +6,27 @@ import { Match } from "./Match";
 export class Player {
   public ID: number;
   public username: string | null;
+  private currentMatch: Match | null;
 
   private readonly socket: WebSocket;
   private readonly game: Game;
-  private onMessage: ((data: Record<string, unknown>) => void) | null = null;
+  /**
+   * Priority handler for an incoming message
+   */
+  private messageHandler: ((data: Record<string, unknown>) => void) | null;
   private methodHandlers: Map<Protocol.ClientToServer["method"], ((data: Record<string, unknown>) => void)>;
 
-  private currentMatch: Match | null;
 
   constructor(socket: WebSocket, game: Game, ID: number) {
     this.socket = socket;
     this.game = game;
 
-    this.methodHandlers = new Map();
     this.ID = ID;
     this.username = null; // Will overwrite in auth
     this.currentMatch = null;
+
+    this.messageHandler = null;
+    this.methodHandlers = new Map();
 
     // Handle incoming message
     socket.onmessage = e => {
@@ -36,7 +41,7 @@ export class Player {
         const method = message.method;
 
         try {
-          if (this.onMessage !== null) this.onMessage(message);
+          if (this.messageHandler !== null) this.messageHandler(message);
           if (this.methodHandlers.has(method)) this.methodHandlers.get(method)!(message.data || {});
         } catch (err) {
           // Runtime error handling message
@@ -55,14 +60,13 @@ export class Player {
   public send(message: Protocol.ServerToClient): void {
     console.log(chalk.underline(`\nServer -> Client (${this.ID})`));
     console.dir(message, { depth: null });
-    this.socket?.send(JSON.stringify(message));
+    this.socket.send(JSON.stringify(message));
   }
 
-
   /**
-   * Init the connection
+   * Start authentication process
    */
-  public async connect(): Promise<void> {
+  public async welcome(): Promise<void> {
     this.send({
       method: "WELCOME"
     });
@@ -70,15 +74,15 @@ export class Player {
     // Await player authentication
     try {
       await new Promise<void>((resolve, reject: (reason: string) => void) => {
-        this.onMessage = data => {
-          this.onMessage = null;
+        this.messageHandler = data => {
+          this.messageHandler = null;
 
           if (data.method !== "AUTH") return reject("Awaiting authentication");
           if (!("username" in data)) return reject("Missing key 'username'");
           if (typeof data.username !== "string") return reject("Invalid 'username' type");
 
           this.username = data.username;
-          if (!this.game.checkUsername(this.username)) return reject("Invalid username");
+          if (!this.game.isUsernameValid(this.username)) return reject("Invalid username");
 
           // Authentification successful
           this.send({
@@ -92,16 +96,21 @@ export class Player {
       return void this.kick(err);
     }
 
-    // Attach miscellaneous handlers
-    // List all available matches
-    this.methodHandlers.set("LIST_MATCHES", () => {
-      // At this point, remove the player from their game, since they obviously left the game
-      this.game.matchHandler.removePlayerFromCurrentMatch(this);
+    this.attachLobbyHandlers();
+  }
 
+  /**
+   * Attach incoming message handlers for the lobby
+   */
+  private attachLobbyHandlers() {
+    /**
+     * List all available matches
+     */
+    this.methodHandlers.set("LIST_MATCHES", () => {
       this.send({
         method: "LIST_MATCHES",
         data: {
-          matches: this.game.matchHandler.listMatches()
+          matches: this.game.getAllMatches().map(match => match.getDataPublic())
         }
       });
     });
@@ -113,18 +122,31 @@ export class Player {
       if (!("matchID" in data)) return this.kick("Missing key 'matchID'");
       if (typeof data.matchID !== "number") return this.kick("Invalid 'matchID' type");
 
-      const match = this.game.matchHandler.getMatch(data.matchID);
-      if (match === null) return this.kick("Invalid 'matchID'");
+      const match = this.game.getMatch(data.matchID);
+      if (match === null) return this.kick("Invalid match ID");
       if (match.isRunning) return this.kick("Match already running");
 
-      this.game.matchHandler.addPlayerToMatch(this, match);
-      this.currentMatch = match;
+      this.joinMatch(match);
 
       this.send({
         method: "JOIN_MATCH"
       });
     });
 
+  }
+
+  /**
+   * Detach handlers for the lobby
+   */
+  private detachLobbyHandlers() {
+    this.methodHandlers.delete("LIST_MATCHES");
+    this.methodHandlers.delete("JOIN_MATCH");
+  }
+
+  /**
+   * Attach incoming message handlers for a match
+   */
+  private attachMatchHandlers() {
     /**
      * Load data for the current match
      */
@@ -134,7 +156,7 @@ export class Player {
       this.send({
         method: "LOAD_MATCH_DATA",
         data: {
-          match: this.currentMatch.getDataWaiting(this)
+          match: this.currentMatch.getDataMatch(this)
         }
       });
     });
@@ -144,6 +166,7 @@ export class Player {
      */
     this.methodHandlers.set("START_MATCH", () => {
       if (this.currentMatch === null) return this.kick("Not in a match");
+      if (!this.currentMatch.isMaster(this)) return this.kick("No permission");
       if (this.currentMatch.isRunning) return this.kick("Already running");
 
       this.send({
@@ -151,6 +174,38 @@ export class Player {
       });
       this.currentMatch.start();
     });
+  }
+
+  /**
+   * Detach handlers for a match
+   */
+  private detachMatchHandlers() {
+    this.methodHandlers.delete("LOAD_MATCH_DATA");
+    this.methodHandlers.delete("START_MATCH");
+  }
+
+  /**
+   * Join a match
+   */
+  private joinMatch(match: Match) {
+    this.currentMatch = match;
+    match.addPlayer(this);
+    this.detachLobbyHandlers();
+    this.attachMatchHandlers();
+  }
+
+  /**
+   * Leave the currently playing match
+   */
+  private leaveCurrentMatch() {
+    this.currentMatch?.removePlayer(this);
+    this.currentMatch = null;
+    this.detachMatchHandlers();
+    this.attachLobbyHandlers();
+  }
+
+  public getCurrentMatch(): Match | null {
+    return this.currentMatch;
   }
 
   /**
@@ -165,8 +220,11 @@ export class Player {
     };
   }
 
+  /**
+   * @returns `false`
+   */
   private kick(reason?: string): false {
-    console.log(chalk.underline("Kick Client (" + this.ID + ")" + (typeof reason !== undefined ? " with reason: " + reason : "")));
+    console.log(chalk.underline("\nKick Client (" + this.ID + ")" + (typeof reason !== undefined ? " with reason: " + reason : "")));
     this.socket.close();
     return false;
   }

@@ -1,47 +1,67 @@
+import { Game } from "./Game";
 import { Player } from "./Player";
+import { CardHelper } from "./CardHelper";
 
 export class Match {
+  private readonly game: Game;
   public readonly ID: number;
-  private name: string;
-  private players: Player[];
-  public isRunning: boolean;
+  private name = "Unnamed match";
+  public isRunning = false;
+
+  /**
+   * Players in the match
+   */
+  private players: Player[] = [];
+
+  /**
+   * Numbers of the players in the match
+   * @key Player's turn number
+   * @value Player
+   */
+  private turnNumbers: Map<number, Player> = new Map();
+
+  /**
+   * The highest player number in the match
+   *
+   * Used to determine the number of a new player
+   */
+  private maxPlayerTurn = 0;
 
   /**
    * Cards to draw from
    */
-  private drawStack: number[];
+  private drawStack: number[] = [];
 
   /**
    * Player who is in control of the game (May start, pause, etc.)
    */
-  private master: Player | null;
+  private master: Player | null = null;
 
   /**
    * Index of `Match.players` of the player whose turn it is
    */
-  private turn;
+  private turn = 0;
 
   /**
    * Cards that lay on the table
    */
-  private stack: number[];
+  private stack: number[] = [];
 
   /**
-   * Each player's cards (Key: Player ID)
+   * The current draw streak
    */
-  private hands: Map<number, number[]>;
+  private drawStreak = 0;
 
+  /**
+   * Each player's cards
+   * @key Player ID
+   * @value Cards
+   */
+  private hands: Map<number, number[]> = new Map();
 
-  constructor(ID: number) {
+  constructor(game: Game, ID: number) {
+    this.game = game;
     this.ID = ID;
-    this.name = "Unnamed match";
-    this.players = [];
-    this.stack = [];
-    this.hands = new Map();
-    this.turn = 0;
-    this.master = null;
-    this.isRunning = false;
-    this.drawStack = [];
   }
 
   /**
@@ -55,15 +75,22 @@ export class Match {
   }
 
   /**
-   * Get data for players waiting for the match to start
+   * Get data for players in the match
    */
-  public getDataWaiting(player: Player): MatchDataWaiting {
+  public getDataMatch(player: Player): MatchDataMatch {
     return {
       ID: this.ID,
       name: this.name,
       isMaster: this.master?.ID === player.ID,
-      players: this.players.filter(p => p.ID !== player.ID).map(p => p.getData())
+      players: Object.assign({}, ...Array.from(this.turnNumbers.entries()).filter(([_turn, player]) => player.ID !== player.ID).map(([turn, player]) => ({ [turn]: player.getData() })))
     };
+  }
+
+  /**
+   * Get currently playing players
+   */
+  public getPlayers(): Player[] {
+    return this.players;
   }
 
   public setName(name: string): void {
@@ -72,14 +99,14 @@ export class Match {
 
   private broadcast(message: Protocol.ServerToClient | ((player: Player) => Protocol.ServerToClient), except?: Player): void {
     if (typeof message === "function") {
-      for (const player of this.players.values()) {
+      for (const player of this.getPlayers()) {
         if (typeof except !== "undefined") {
           if (player.ID === except.ID) continue;
         }
         player.send(message(player));
       }
     } else {
-      for (const player of this.players.values()) {
+      for (const player of this.getPlayers()) {
         if (typeof except !== "undefined") {
           if (player.ID === except.ID) continue;
         }
@@ -94,13 +121,16 @@ export class Match {
     }
 
     this.players.push(player);
+    const turn = ++this.maxPlayerTurn;
+    this.turnNumbers.set(turn, player);
     this.hands.set(player.ID, []);
 
     this.broadcast({
       method: "EVENT",
       event: "ADD_PLAYER",
       data: {
-        player: player.getData()
+        player: player.getData(),
+        playerNumber: turn
       }
     }, player);
   }
@@ -118,12 +148,14 @@ export class Match {
     }
 
     this.hands.delete(player.ID);
+    const turn = this.getTurnNumberOfPlayer(player)!;
+    this.turnNumbers.delete(turn);
 
     this.broadcast({
       method: "EVENT",
       event: "REMOVE_PLAYER",
       data: {
-        playerID: player.ID
+        playerNumber: turn
       }
     }, player);
   }
@@ -133,6 +165,7 @@ export class Match {
    */
   public start(): void {
 
+    // Fill draw stack
     for (let color = 0; color < 4; color++) {
       for (let value = 0; value < 15; value++) {
         this.drawStack.push(color << 4 | value);
@@ -142,10 +175,8 @@ export class Match {
       }
     }
 
-
-
-    const startingCard = this.getRandomCardFromDrawStack();
     // Generate a random card to start the game with (0-9, all colors)
+    const startingCard = this.getRandomCardFromDrawStack(false);
     this.stack.push(startingCard);
 
     this.generateStartingHandCards();
@@ -160,6 +191,8 @@ export class Match {
     }));
 
     this.isRunning = true;
+
+    this.turn = 0;
   }
 
   /**
@@ -186,7 +219,7 @@ export class Match {
    * Generate starting cards for all players
    */
   private generateStartingHandCards(): void {
-    for (const player of this.players.values()) {
+    for (const player of this.turnNumbers.values()) {
       for (let i = 0; i < 6; i++) {
         this.addCardToPlayer(player, this.getRandomCardFromDrawStack());
       }
@@ -198,6 +231,13 @@ export class Match {
    */
   public addCardToPlayer(player: Player, card: number): void {
     this.hands.get(player.ID)?.push(card);
+    player.send({
+      method: "EVENT",
+      event: "ADD_CARD_TO_HAND",
+      data: {
+        card: card
+      }
+    });
   }
 
   /**
@@ -221,5 +261,45 @@ export class Match {
         card: card
       }
     });
+  }
+
+  /**
+   * Check whether a player is the match master
+   */
+  public isMaster(player: Player): boolean {
+    return this.master === player;
+  }
+
+  /**
+   * Get a player's turn number
+   */
+  public getTurnNumberOfPlayer(player: Player): number | null {
+    return Array.from(this.turnNumbers.keys()).find(number => this.turnNumbers.get(number) === player) || null;
+  }
+
+  /**
+   * Check whether it's a player's turn
+   */
+  public isPlayersTurn(player: Player): boolean {
+    return this.getTurnNumberOfPlayer(player) === this.turn;
+  }
+
+  public getTopCard(): number | null {
+    return this.stack[this.stack.length - 1] || null;
+  }
+
+  /**
+   * Play a single card or a sequence of cards as a player
+   * @return Whether the play is valid
+   */
+  public playerPlayCards(player: Player, ...cards: number[]): boolean {
+    if (!CardHelper.isValidPlay(!this.isPlayersTurn(player), cards, this.getTopCard()!, this.drawStreak)) {
+      return false;
+    }
+    // By here, we know that according to our magic rule set, the play is valid
+
+
+
+    return true;
   }
 }

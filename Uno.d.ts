@@ -3,10 +3,10 @@ declare type MatchDataPublic = {
   name: string;
 };
 
-declare type MatchDataWaiting = {
+declare type MatchDataMatch = {
   ID: number;
   name: string;
-  players: PlayerData[];
+  players: Record<number, PlayerData>;
   isMaster: boolean;
 };
 
@@ -52,11 +52,12 @@ declare namespace Protocol {
     event: "ADD_PLAYER",
     data: {
       player: PlayerData;
+      playerNumber: number;
     };
   } | {
     event: "REMOVE_PLAYER",
     data: {
-      playerID: number;
+      playerNumber: number;
     };
   } | {
     event: "START_MATCH",
@@ -81,6 +82,14 @@ declare namespace Protocol {
      * Promote to match master
      */
     event: "PROMOTE";
+  } | {
+    /**
+     * Add a card to the player
+     */
+    event: "ADD_CARD_TO_HAND";
+    data: {
+      card: number;
+    };
   };
 
   type ServerToClient = ({
@@ -112,7 +121,7 @@ declare namespace Protocol {
        */
       method: "LOAD_MATCH_DATA";
       data: {
-        match: MatchDataWaiting;
+        match: MatchDataMatch;
       };
     } | {
       /**
