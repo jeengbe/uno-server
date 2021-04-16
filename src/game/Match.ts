@@ -38,6 +38,13 @@ export class Match {
   private master: Player | null = null;
 
   /**
+   * Which direction the turn is going
+   *
+   * `-1` means backward, `1` means forward
+   */
+  private turnDirection = 1;
+
+  /**
    * Index of `Match.players` of the player whose turn it is
    */
   private turn = 0;
@@ -196,12 +203,24 @@ export class Match {
   }
 
   /**
+   * Put the cards from the stack back into the draw stack
+   */
+  private blendStack(): void {
+    this.drawStack.push(...this.stack);
+    this.stack = [];
+  }
+
+  /**
    * Get a random card from the draw stack
    *
    * @param actions Whether to include action cards (default: `true`)
    * @param remove Whether to remove the card from the draw stack (default: `true`)
    */
   public getRandomCardFromDrawStack(actions?: boolean, remove?: boolean): number {
+    if (this.drawStack.length === 0) {
+      this.blendStack();
+    }
+
     let card, index;
     do {
       index = Math.floor(Math.random() * this.drawStack.length);
@@ -221,7 +240,7 @@ export class Match {
   private generateStartingHandCards(): void {
     for (const player of this.turnNumbers.values()) {
       for (let i = 0; i < 6; i++) {
-        this.addCardToPlayer(player, this.getRandomCardFromDrawStack());
+        this.addCardsToPlayer(player, [this.getRandomCardFromDrawStack()]);
       }
     }
   }
@@ -229,13 +248,13 @@ export class Match {
   /**
    * Add a card to the player's hand
    */
-  public addCardToPlayer(player: Player, card: number): void {
-    this.hands.get(player.ID)?.push(card);
+  public addCardsToPlayer(player: Player, cards: number[]): void {
+    this.hands.get(player.ID)?.push(...cards);
     player.send({
       method: "EVENT",
-      event: "ADD_CARD_TO_HAND",
+      event: "ADD_CARDS_TO_HAND",
       data: {
-        card: card
+        cards: cards
       }
     });
   }
@@ -258,7 +277,7 @@ export class Match {
       method: "EVENT",
       event: "PUSH_STACK",
       data: {
-        card: card
+        cards: [card]
       }
     });
   }
@@ -289,16 +308,76 @@ export class Match {
   }
 
   /**
+   * Increments `this.turn` to the next player
+   */
+  private nextTurn(): void {
+    do {
+      this.turn += this.turnDirection;
+      this.turn = this.turn % this.players.length;
+    } while (typeof this.players[this.turn] !== "undefined");
+    this.broadcast({
+      method: "EVENT",
+      event: "SET_TURN",
+      data: {
+        turn: this.turn
+      }
+    });
+  }
+
+  /**
+   * Take up the draw streak as a player and next turn
+   */
+  public playerTakeDrawStreak(player: Player): void {
+    this.addCardsToPlayer(player, new Array(this.drawStreak).fill(null).map(() => this.getRandomCardFromDrawStack()));
+    this.drawStreak = 0;
+    this.nextTurn();
+  }
+
+  /**
    * Play a single card or a sequence of cards as a player
+   *
+   * @param cardIndices Indices of the cards to play in the player's hand
    * @return Whether the play is valid
    */
-  public playerPlayCards(player: Player, ...cards: number[]): boolean {
-    if (!CardHelper.isValidPlay(!this.isPlayersTurn(player), cards, this.getTopCard()!, this.drawStreak)) {
+  public playerPlayCards(player: Player, ...cardIndices: number[]): boolean {
+    const cards = cardIndices.map(index => this.hands.get(player.ID)![index]);
+
+    if (!CardHelper.isValidPlay(!this.isPlayersTurn(player), this.getTopCard()!, this.drawStreak, cards)) {
       return false;
     }
     // By here, we know that according to our magic rule set, the play is valid
 
+    for (const card of cards) {
+      this.stack.push(card);
+      switch (CardHelper.Value.of(card)) {
+        case CardHelper.Value.ACTION_PLUS_TWO:
+          this.drawStreak += 2;
+          break;
+        case CardHelper.Value.ACTION_PLUS_FOUR:
+          this.drawStreak += 4;
+          break;
+        case CardHelper.Value.ACTION_SKIP:
+          this.nextTurn();
+          break;
+        case CardHelper.Value.ACTION_NO_U:
+          this.turnDirection *= -1;
+          break;
+      }
+    }
 
+    // Run backwards so that indices to splice remain the same
+    for (const index of cardIndices.sort((a, b) => b - a)) {
+      this.hands.get(player.ID)!.splice(index, 1);
+    }
+
+    this.broadcast({
+      method: "EVENT",
+      event: "PUSH_STACK",
+      data: {
+        cards: cards
+      }
+    });
+    this.nextTurn();
 
     return true;
   }

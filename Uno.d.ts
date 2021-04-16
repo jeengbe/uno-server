@@ -72,10 +72,13 @@ declare namespace Protocol {
       cards: number[];
     };
   } | {
+    /**
+     * Add a number of cards to the stack
+     */
     // TODO: Implement
     event: "PUSH_STACK",
     data: {
-      card: number;
+      cards: number[];
     };
   } | {
     /**
@@ -84,11 +87,19 @@ declare namespace Protocol {
     event: "PROMOTE";
   } | {
     /**
-     * Add a card to the player
+     * Add cards to the player
      */
-    event: "ADD_CARD_TO_HAND";
+    event: "ADD_CARDS_TO_HAND";
     data: {
-      card: number;
+      cards: number[];
+    };
+  } | {
+    /**
+     * Set whose turn it is
+     */
+    event: "SET_TURN";
+    data: {
+      turn: number;
     };
   };
 
