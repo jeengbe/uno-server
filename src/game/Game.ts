@@ -41,9 +41,9 @@ export class Game {
     });
 
     // Init matches
-    this.addMatch(new Match(this, 0));
-    this.addMatch(new Match(this, 2));
-    this.addMatch(new Match(this, 1));
+    this.addMatch(new Match(0));
+    this.addMatch(new Match(2));
+    this.addMatch(new Match(1));
     this.getMatch(0)?.setName("My match 0");
     this.getMatch(1)?.setName("My match 1");
     this.getMatch(2)?.setName("My match 2");

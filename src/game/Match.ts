@@ -3,7 +3,6 @@ import { Player } from "./Player";
 import { CardHelper } from "./CardHelper";
 
 export class Match {
-  private readonly game: Game;
   public readonly ID: number;
   private name = "Unnamed match";
   public isRunning = false;
@@ -66,8 +65,7 @@ export class Match {
    */
   private hands: Map<number, number[]> = new Map();
 
-  constructor(game: Game, ID: number) {
-    this.game = game;
+  constructor(ID: number) {
     this.ID = ID;
   }
 
@@ -162,7 +160,7 @@ export class Match {
       method: "EVENT",
       event: "REMOVE_PLAYER",
       data: {
-        playerNumber: turn
+        playerID: turn
       }
     }, player);
   }
@@ -234,29 +232,35 @@ export class Match {
     return card;
   }
 
+  public getRandomCardsFromDrawStack(count: number, actions?: boolean, remove?: boolean): number[] {
+    return new Array(count).fill(null).map(() => this.getRandomCardFromDrawStack(actions, remove));
+  }
+
   /**
    * Generate starting cards for all players
    */
   private generateStartingHandCards(): void {
     for (const player of this.turnNumbers.values()) {
-      for (let i = 0; i < 6; i++) {
-        this.addCardsToPlayer(player, [this.getRandomCardFromDrawStack()]);
-      }
+      this.addCardsToPlayer(player, this.getRandomCardsFromDrawStack(6), false);
     }
   }
 
   /**
    * Add a card to the player's hand
+   *
+   * @param send Whether to send an event to the player (default: `true`)
    */
-  public addCardsToPlayer(player: Player, cards: number[]): void {
+  public addCardsToPlayer(player: Player, cards: number[], send?: boolean): void {
     this.hands.get(player.ID)?.push(...cards);
-    player.send({
-      method: "EVENT",
-      event: "ADD_CARDS_TO_HAND",
-      data: {
-        cards: cards
-      }
-    });
+    if (send !== false) {
+      player.send({
+        method: "EVENT",
+        event: "ADD_CARDS_TO_HAND",
+        data: {
+          cards: cards
+        }
+      });
+    }
   }
 
   /**
@@ -328,7 +332,7 @@ export class Match {
    * Take up the draw streak as a player and next turn
    */
   public playerTakeDrawStreak(player: Player): void {
-    this.addCardsToPlayer(player, new Array(this.drawStreak).fill(null).map(() => this.getRandomCardFromDrawStack()));
+    this.addCardsToPlayer(player, this.getRandomCardsFromDrawStack(this.drawStreak));
     this.drawStreak = 0;
     this.nextTurn();
   }
@@ -339,13 +343,18 @@ export class Match {
    * @param cardIndices Indices of the cards to play in the player's hand
    * @return Whether the play is valid
    */
-  public playerPlayCards(player: Player, ...cardIndices: number[]): boolean {
-    const cards = cardIndices.map(index => this.hands.get(player.ID)![index]);
+  public playerPlayCards(player: Player, cardIndices: number[]): boolean {
+    const hand = this.hands.get(player.ID)!;
+    if (cardIndices.some(index => index >= hand.length)) {
+      player.kick("Invalid card indices");
+      return false;
+    }
+
+    const cards = cardIndices.map(index => hand[index]);
 
     if (!CardHelper.isValidPlay(!this.isPlayersTurn(player), this.getTopCard()!, this.drawStreak, cards)) {
       return false;
     }
-    // By here, we know that according to our magic rule set, the play is valid
 
     for (const card of cards) {
       this.stack.push(card);

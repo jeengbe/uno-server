@@ -5,16 +5,16 @@ import { Match } from "./Match";
 
 export class Player {
   public ID: number;
-  public username: string | null;
-  private currentMatch: Match | null;
+  public username: string | null = null;  // Will overwrite in auth
+  private currentMatch: Match | null = null;
 
   private readonly socket: WebSocket;
   private readonly game: Game;
   /**
    * Priority handler for an incoming message
    */
-  private messageHandler: ((data: Record<string, unknown>) => void) | null;
-  private methodHandlers: Map<Protocol.ClientToServer["method"], ((data: Record<string, unknown>) => void)>;
+  private messageHandler: ((data: Record<string, unknown>) => void) | null = null;
+  private methodHandlers: Map<Protocol.ClientToServer["method"], ((data: Record<string, unknown>) => void)> = new Map();
 
 
   constructor(socket: WebSocket, game: Game, ID: number) {
@@ -22,17 +22,12 @@ export class Player {
     this.game = game;
 
     this.ID = ID;
-    this.username = null; // Will overwrite in auth
-    this.currentMatch = null;
-
-    this.messageHandler = null;
-    this.methodHandlers = new Map();
 
     // Handle incoming message
     socket.onmessage = e => {
       try {
-        const message = JSON.parse(e.data.toString());
         console.log(chalk.underline(`\n\nServer <- Client (${this.ID})`));
+        const message = JSON.parse(e.data.toString());
         console.dir(message, { depth: null });
         if (typeof message !== "object" || Array.isArray(message) || message === null) return this.kick("Invalid message");
 
@@ -49,6 +44,7 @@ export class Player {
         }
       } catch (err) {
         // Error decoding JSON
+        console.log(e.data.toString());
         return this.kick("Invalid message");
       }
     };
@@ -223,7 +219,7 @@ export class Player {
   /**
    * @returns `false`
    */
-  private kick(reason?: string): false {
+  public kick(reason?: string): false {
     console.log(chalk.underline("\nKick Client (" + this.ID + ")" + (typeof reason !== undefined ? " with reason: " + reason : "")));
     this.socket.close();
     return false;

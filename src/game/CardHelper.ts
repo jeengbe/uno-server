@@ -111,6 +111,7 @@ export class CardHelper {
       return false;
     }
 
+    console.log("Valid play");
     return true;
   }
 
