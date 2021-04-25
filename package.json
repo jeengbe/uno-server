@@ -4,7 +4,8 @@
   "scripts": {
     "build": "tsc",
     "run": "node ./build/index.js",
-    "dev": "tsc --watch",
+    "dev": "npx concurrently -r -n tscw,node npm:tscw npm:nodemon",
+    "tscw": "tsc --watch",
     "nodemon": "nodemon ./build/index.js"
   },
   "repository": {
@@ -22,6 +23,7 @@
     "@types/ws": "^7.4.1",
     "@typescript-eslint/eslint-plugin": "^4.21.0",
     "@typescript-eslint/parser": "^4.21.0",
+    "concurrently": "^6.0.2",
     "eslint": "^7.23.0",
     "nodemon": "^2.0.7",
     "typescript": "^4.2.3"
