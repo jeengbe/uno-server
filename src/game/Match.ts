@@ -87,7 +87,7 @@ export class Match {
       ID: this.ID,
       name: this.name,
       isMaster: this.master?.ID === player.ID,
-      players: Object.assign({}, ...Array.from(this.turnNumbers.entries()).filter(([_turn, player]) => player.ID !== player.ID).map(([turn, player]) => ({ [turn]: player.getData() })))
+      players: Object.assign({}, ...Array.from(this.turnNumbers.entries()).filter(([_turn, p]) => p.ID !== player.ID).map(([turn, p]) => ({ [turn]: p.getData() })))
     };
   }
 
@@ -153,14 +153,14 @@ export class Match {
     }
 
     this.hands.delete(player.ID);
-    const turn = this.getTurnNumberOfPlayer(player)!;
-    this.turnNumbers.delete(turn);
+    const turnNumber = this.getTurnNumberOfPlayer(player)!;
+    this.turnNumbers.delete(turnNumber);
 
     this.broadcast({
       method: "EVENT",
       event: "REMOVE_PLAYER",
       data: {
-        playerID: turn
+        playerNumber: turnNumber
       }
     }, player);
   }

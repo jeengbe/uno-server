@@ -57,7 +57,7 @@ declare namespace Protocol {
   } | {
     event: "REMOVE_PLAYER",
     data: {
-      playerID: number;
+      playerNumber: number;
     };
   } | {
     event: "START_MATCH",
