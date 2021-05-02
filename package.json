@@ -6,7 +6,7 @@
     "run": "node ./build/index.js",
     "dev": "npx concurrently -r -n tscw,node npm:tscw npm:nodemon",
     "tscw": "tsc --watch",
-    "nodemon": "nodemon ./build/index.js"
+    "nodemon": "nodemon --inspect ./build/index.js"
   },
   "repository": {
     "type": "git",

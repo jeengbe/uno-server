@@ -190,20 +190,20 @@ export class Player {
           valid: this.currentMatch.playerPlayCards(this, data.cards)
         }
       });
+    });
 
-      /**
-       * Take up a card from the draw stack
-       */
-      this.methodHandlers.set("TAKE_CARD", () => {
-        if (this.currentMatch === null) return this.kick("Not in a match");
-        if (!this.currentMatch!.isPlayersTurn(this)) return this.kick("Not your turn");
+    /**
+     * Take up a card from the draw stack
+     */
+    this.methodHandlers.set("TAKE_CARD", () => {
+      if (this.currentMatch === null) return this.kick("Not in a match");
+      if (!this.currentMatch!.isPlayersTurn(this)) return this.kick("Not your turn");
 
-        this.currentMatch!.takeCard(this);
-        this.currentMatch!.nextTurn();
+      this.currentMatch!.takeCard(this);
+      this.currentMatch!.nextTurn();
 
-        this.send({
-          method: "TAKE_CARD",
-        });
+      this.send({
+        method: "TAKE_CARD",
       });
     });
   }

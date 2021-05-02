@@ -87,9 +87,9 @@ declare namespace Protocol {
     event: "START_MATCH",
     data: {
       /**
-       * Card on the top of the stack
+       * Cards on stack
        */
-      topCard: number;
+      stack: number[];
       /**
        * Player's cards
        */
@@ -124,6 +124,7 @@ declare namespace Protocol {
     event: "SET_TURN";
     data: {
       turn: number;
+      drawStreak: number;
     };
   };
 

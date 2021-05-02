@@ -1,30 +1,27 @@
-import { Game } from "./Game";
 import { Player } from "./Player";
 import { CardHelper } from "./CardHelper";
 
 export class Match {
   public readonly ID: number;
-  private name = "Unnamed match";
+  public name = "Unnamed match";
   public isRunning = false;
 
   /**
-   * Players in the match
+   * Players in the match and their number
    */
   private players: Player[] = [];
 
   /**
-   * Numbers of the players in the match
-   * @key Player's turn number
-   * @value Player
+   * Each player's number
    */
-  private turnNumbers: Map<number, Player> = new Map();
+  private playerNumbers: Map<Player, number> = new Map();
 
   /**
    * The highest player number in the match
    *
    * Used to determine the number of a new player
    */
-  private maxPlayerTurn = 0;
+  private maxPlayerNumber = 0;
 
   /**
    * Cards to draw from
@@ -44,7 +41,7 @@ export class Match {
   private turnDirection = 1;
 
   /**
-   * Index of `Match.players` of the player whose turn it is
+   * Player number of the player whose turn it is
    */
   private turn = 0;
 
@@ -60,10 +57,8 @@ export class Match {
 
   /**
    * Each player's cards
-   * @key Player ID
-   * @value Cards
    */
-  private hands: Map<number, number[]> = new Map();
+  private hands: Map<Player, number[]> = new Map();
 
   constructor(ID: number) {
     this.ID = ID;
@@ -83,19 +78,17 @@ export class Match {
    * Get data for players in the match
    */
   public getDataMatch(player: Player): MatchDataMatch {
+    const players: Record<number, PlayerData> = {};
+    this.players.forEach(p => {
+      if (p.ID !== player.ID) players[this.playerNumbers.get(p)!] = p.getData();
+    });
+
     return {
       ID: this.ID,
       name: this.name,
       isMaster: this.master?.ID === player.ID,
-      players: Object.assign({}, ...Array.from(this.turnNumbers.entries()).filter(([_turn, p]) => p.ID !== player.ID).map(([turn, p]) => ({ [turn]: p.getData() })))
+      players: players
     };
-  }
-
-  /**
-   * Get currently playing players
-   */
-  public getPlayers(): Player[] {
-    return this.players;
   }
 
   public setName(name: string): void {
@@ -104,14 +97,14 @@ export class Match {
 
   private broadcast(message: Protocol.ServerToClient | ((player: Player) => Protocol.ServerToClient), except?: Player): void {
     if (typeof message === "function") {
-      for (const player of this.getPlayers()) {
+      for (const player of this.players) {
         if (typeof except !== "undefined") {
           if (player.ID === except.ID) continue;
         }
         player.send(message(player));
       }
     } else {
-      for (const player of this.getPlayers()) {
+      for (const player of this.players) {
         if (typeof except !== "undefined") {
           if (player.ID === except.ID) continue;
         }
@@ -121,7 +114,7 @@ export class Match {
   }
 
   /**
-   * @return The player's turn number
+   * @return The player's number
    */
   public addPlayer(player: Player): number {
     if (this.master === null) {
@@ -129,24 +122,25 @@ export class Match {
     }
 
     this.players.push(player);
-    const turn = this.maxPlayerTurn++;
-    this.turnNumbers.set(turn, player);
-    this.hands.set(player.ID, []);
+    const playerNumber = this.maxPlayerNumber++;
+    this.playerNumbers.set(player, playerNumber);
+    this.hands.set(player, []);
 
     this.broadcast({
       method: "EVENT",
       event: "ADD_PLAYER",
       data: {
         player: player.getData(),
-        playerNumber: turn
+        playerNumber: playerNumber
       }
     }, player);
 
-    return turn;
+    return playerNumber;
   }
 
   public removePlayer(player: Player): void {
     this.players.splice(this.players.indexOf(player), 1);
+    this.hands.delete(player);
 
     if (this.master?.ID === player.ID) {
       this.master = this.players[0] || null;
@@ -157,15 +151,11 @@ export class Match {
       });
     }
 
-    this.hands.delete(player.ID);
-    const turnNumber = this.getTurnNumberOfPlayer(player)!;
-    this.turnNumbers.delete(turnNumber);
-
     this.broadcast({
       method: "EVENT",
       event: "REMOVE_PLAYER",
       data: {
-        playerNumber: turnNumber
+        playerNumber: this.playerNumbers.get(player)!
       }
     }, player);
   }
@@ -177,6 +167,7 @@ export class Match {
 
     // Fill draw stack
     for (let color = 0; color < 4; color++) {
+      // Card 0 and 15 only once
       for (let value = 0; value < 15; value++) {
         this.drawStack.push(color << 4 | value);
       }
@@ -195,13 +186,12 @@ export class Match {
       method: "EVENT",
       event: "START_MATCH",
       data: {
-        topCard: startingCard,
-        cards: this.hands.get(player.ID)!
+        stack: this.stack,
+        cards: this.hands.get(player)!
       }
     }));
 
     this.isRunning = true;
-
     this.setTurn(0);
   }
 
@@ -211,7 +201,8 @@ export class Match {
       method: "EVENT",
       event: "SET_TURN",
       data: {
-        turn: this.turn
+        turn: this.turn,
+        drawStreak: this.drawStreak
       }
     });
   }
@@ -256,7 +247,7 @@ export class Match {
    * Generate starting cards for all players
    */
   private generateStartingHandCards(): void {
-    for (const player of this.turnNumbers.values()) {
+    for (const player of this.players) {
       this.addCardsToPlayer(player, this.getRandomCardsFromDrawStack(6), false);
     }
   }
@@ -267,7 +258,7 @@ export class Match {
    * @param send Whether to send an event to the player (default: `true`)
    */
   public addCardsToPlayer(player: Player, cards: number[], send?: boolean): void {
-    this.hands.get(player.ID)?.push(...cards);
+    this.hands.get(player)?.push(...cards);
     if (send !== false) {
       player.send({
         method: "EVENT",
@@ -277,15 +268,6 @@ export class Match {
         }
       });
     }
-  }
-
-  /**
-   * Remove a card from the player's hand
-   *
-   * @param cardIndex **Index of the card in the player's hand** (Due to the possiblity of having the same card multiple times)
-   */
-  public removeCardFromPlayerByIndex(player: Player, cardIndex: number): void {
-    this.hands.get(player.ID)?.splice(cardIndex, 1);
   }
 
   /**
@@ -313,10 +295,15 @@ export class Match {
    * Get a player's turn number
    */
   public getTurnNumberOfPlayer(player: Player): number | null {
-    const number = Array.from(this.turnNumbers.keys()).find(number => this.turnNumbers.get(number) === player);
-    if (typeof number !== "number") return null;
+    return this.playerNumbers.has(player) ? this.playerNumbers.get(player)! : null;
+  }
 
-    return number;
+  public getPlayerByNumber(playerNumber: number): Player | null {
+    let player = null;
+    this.playerNumbers.forEach((n, p) => {
+      if (n === playerNumber) player = p;
+    });
+    return player;
   }
 
   /**
@@ -335,8 +322,11 @@ export class Match {
    */
   public nextTurn(): void {
     let turn = this.turn;
-    turn += this.turnDirection;
-    turn = turn % this.players.length;
+    do {
+      turn += this.turnDirection;
+      turn %= this.maxPlayerNumber;
+    } while (this.getPlayerByNumber(turn) === null);
+
     this.setTurn(turn);
   }
 
@@ -356,7 +346,7 @@ export class Match {
    * @return Whether the play is valid
    */
   public playerPlayCards(player: Player, cardIndices: number[]): boolean {
-    const hand = this.hands.get(player.ID)!;
+    const hand = this.hands.get(player)!;
     if (cardIndices.some(index => index >= hand.length)) {
       player.kick("Invalid card indices");
       return false;
@@ -388,7 +378,7 @@ export class Match {
 
     // Run backwards so that indices to splice remain the same
     for (const index of cardIndices.sort((a, b) => b - a)) {
-      this.hands.get(player.ID)!.splice(index, 1);
+      this.hands.get(player)!.splice(index, 1);
     }
 
     this.broadcast({
