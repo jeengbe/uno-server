@@ -122,10 +122,11 @@ export class Player {
       if (match === null) return this.kick("Invalid match ID");
       if (match.isRunning) return this.kick("Match already running");
 
-      this.joinMatch(match);
-
       this.send({
-        method: "JOIN_MATCH"
+        method: "JOIN_MATCH",
+        data: {
+          turnNumber: this.joinMatch(match)
+        }
       });
     });
 
@@ -170,6 +171,41 @@ export class Player {
       });
       this.currentMatch.start();
     });
+
+    /**
+     * Play cards
+     */
+    this.methodHandlers.set("PLAY_CARDS", data => {
+      if (this.currentMatch === null) return this.kick("Not in a match");
+      if (!this.currentMatch.isRunning) return this.kick("Not running");
+
+      if (!("cards" in data)) return this.kick("Missing key 'cards'");
+      if (typeof data.cards !== "object") return this.kick("Invalid 'cards' type");
+      if (!Array.isArray(data.cards)) return this.kick("Invalid 'cards' type");
+      if (data.cards.some(card => typeof card !== "number")) return this.kick("Invalid 'cards' type");
+
+      this.send({
+        method: "PLAY_CARDS",
+        data: {
+          valid: this.currentMatch.playerPlayCards(this, data.cards)
+        }
+      });
+
+      /**
+       * Take up a card from the draw stack
+       */
+      this.methodHandlers.set("TAKE_CARD", () => {
+        if (this.currentMatch === null) return this.kick("Not in a match");
+        if (!this.currentMatch!.isPlayersTurn(this)) return this.kick("Not your turn");
+
+        this.currentMatch!.takeCard(this);
+        this.currentMatch!.nextTurn();
+
+        this.send({
+          method: "TAKE_CARD",
+        });
+      });
+    });
   }
 
   /**
@@ -182,12 +218,14 @@ export class Player {
 
   /**
    * Join a match
+   * @return The player's turn number in the match
    */
-  private joinMatch(match: Match) {
+  private joinMatch(match: Match): number {
     this.currentMatch = match;
-    match.addPlayer(this);
+    const turnNumber = match.addPlayer(this);
     this.detachLobbyHandlers();
     this.attachMatchHandlers();
+    return turnNumber;
   }
 
   /**

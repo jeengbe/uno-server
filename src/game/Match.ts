@@ -120,13 +120,16 @@ export class Match {
     }
   }
 
-  public addPlayer(player: Player): void {
+  /**
+   * @return The player's turn number
+   */
+  public addPlayer(player: Player): number {
     if (this.master === null) {
       this.master = player;
     }
 
     this.players.push(player);
-    const turn = ++this.maxPlayerTurn;
+    const turn = this.maxPlayerTurn++;
     this.turnNumbers.set(turn, player);
     this.hands.set(player.ID, []);
 
@@ -138,6 +141,8 @@ export class Match {
         playerNumber: turn
       }
     }, player);
+
+    return turn;
   }
 
   public removePlayer(player: Player): void {
@@ -197,7 +202,18 @@ export class Match {
 
     this.isRunning = true;
 
-    this.turn = 0;
+    this.setTurn(0);
+  }
+
+  private setTurn(turn: number): void {
+    this.turn = turn;
+    this.broadcast({
+      method: "EVENT",
+      event: "SET_TURN",
+      data: {
+        turn: this.turn
+      }
+    });
   }
 
   /**
@@ -297,7 +313,10 @@ export class Match {
    * Get a player's turn number
    */
   public getTurnNumberOfPlayer(player: Player): number | null {
-    return Array.from(this.turnNumbers.keys()).find(number => this.turnNumbers.get(number) === player) || null;
+    const number = Array.from(this.turnNumbers.keys()).find(number => this.turnNumbers.get(number) === player);
+    if (typeof number !== "number") return null;
+
+    return number;
   }
 
   /**
@@ -314,18 +333,11 @@ export class Match {
   /**
    * Increments `this.turn` to the next player
    */
-  private nextTurn(): void {
-    do {
-      this.turn += this.turnDirection;
-      this.turn = this.turn % this.players.length;
-    } while (typeof this.players[this.turn] !== "undefined");
-    this.broadcast({
-      method: "EVENT",
-      event: "SET_TURN",
-      data: {
-        turn: this.turn
-      }
-    });
+  public nextTurn(): void {
+    let turn = this.turn;
+    turn += this.turnDirection;
+    turn = turn % this.players.length;
+    this.setTurn(turn);
   }
 
   /**
@@ -366,7 +378,7 @@ export class Match {
           this.drawStreak += 4;
           break;
         case CardHelper.Value.ACTION_SKIP:
-          this.nextTurn();
+          this.turn++;
           break;
         case CardHelper.Value.ACTION_NO_U:
           this.turnDirection *= -1;
@@ -389,5 +401,12 @@ export class Match {
     this.nextTurn();
 
     return true;
+  }
+
+  /**
+   * Take a card from the draw stack
+   */
+  public takeCard(player: Player): void {
+    this.addCardsToPlayer(player, [this.getRandomCardFromDrawStack()], true);
   }
 }

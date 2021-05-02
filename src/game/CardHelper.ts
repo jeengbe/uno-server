@@ -40,6 +40,7 @@ export class CardHelper {
    * @param cards The played cards
    */
   public static isValidPlay(isInterjected: boolean, topCard: number, drawStreak: number, cards: number[]): boolean {
+    console.log("Checking Play", { isInterjected: isInterjected, topCard: topCard, drawStreak: drawStreak, cards: cards });
     if (cards.length < 1) return false;
 
     for (let i = 0; i < cards.length; i++) {

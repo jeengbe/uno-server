@@ -17,36 +17,60 @@ declare type PlayerData = {
 
 
 declare namespace Protocol {
-  type ClientToServer = {
-    /**
-     * Request authentication
-     */
-    method: "AUTH";
-    username: string;
-  } | {
-    /**
-     * List joinable matches
-     */
-    method: "LIST_MATCHES";
-  } | {
-    /**
-     * Join a match
-     */
-    method: "JOIN_MATCH",
-    data: {
-      matchID: number;
+  type ClientToServerEvent = never;
+  // type ClientToServerEvent = {
+  //   event: "PLAY_CARDS",
+  //   data: {
+  //     cardIndices: number[];
+  //   };
+  // };
+
+  type ClientToServer = ({
+    method: "EVENT";
+  } &
+    ClientToServerEvent) | {
+      /**
+       * Request authentication
+       */
+      method: "AUTH";
+      username: string;
+    } | {
+      /**
+       * List joinable matches
+       */
+      method: "LIST_MATCHES";
+    } | {
+      /**
+       * Join a match
+       */
+      method: "JOIN_MATCH",
+      data: {
+        matchID: number;
+      };
+    } | {
+      /**
+       * Load data for the current match
+       */
+      method: "LOAD_MATCH_DATA";
+    } | {
+      /**
+       * Start the currently playing match
+       */
+      method: "START_MATCH";
+    } | {
+      /**
+       * Play a single or a sequence of cards
+       */
+      method: "PLAY_CARDS";
+      data: {
+        cards: number[];
+      };
+    } | {
+      /**
+       * Pick up a card from the draw stack
+       */
+      method: "TAKE_CARD";
     };
-  } | {
-    /**
-     * Load data for the current match
-     */
-    method: "LOAD_MATCH_DATA";
-  } | {
-    /**
-     * Start the currently playing match
-     */
-    method: "START_MATCH";
-  };
 
   type ServerToClientEvent = {
     event: "ADD_PLAYER",
@@ -126,6 +150,12 @@ declare namespace Protocol {
        * Match join successful
        */
       method: "JOIN_MATCH";
+      data: {
+        /**
+         * The player's turn number
+         */
+        turnNumber: number;
+      };
     } | {
       /**
        * Loaded data of the current match
@@ -139,5 +169,21 @@ declare namespace Protocol {
        * Start match confirm
        */
       method: "START_MATCH";
+    } | {
+      /**
+       * Play confirmation
+       */
+      method: "PLAY_CARDS";
+      data: {
+        /**
+         * Whether the play is valid
+         */
+        valid: boolean;
+      };
+    } | {
+      /**
+       * Confirmation for taking a card
+       */
+      method: "TAKE_CARD";
     };
 }
