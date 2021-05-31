@@ -31,6 +31,6 @@
   "dependencies": {
     "chalk": "^4.1.0",
     "source-map-support": "^0.5.19",
-    "ws": "^7.4.4"
+    "ws": "^7.4.6"
   }
 }
