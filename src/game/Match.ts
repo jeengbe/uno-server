@@ -60,6 +60,11 @@ export class Match {
    */
   private hands: Map<Player, number[]> = new Map();
 
+  /**
+   * Whether the current player has already taken a card
+   */
+  public hasTakenCardAlready = false;
+
   constructor(ID: number) {
     this.ID = ID;
   }
@@ -328,6 +333,7 @@ export class Match {
     } while (this.getPlayerByNumber(turn) === null);
 
     this.setTurn(turn);
+    this.hasTakenCardAlready = false;
   }
 
   /**
@@ -398,5 +404,6 @@ export class Match {
    */
   public takeCard(player: Player): void {
     this.addCardsToPlayer(player, [this.getRandomCardFromDrawStack()], true);
+    this.hasTakenCardAlready = true;
   }
 }

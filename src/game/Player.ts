@@ -200,11 +200,21 @@ export class Player {
       if (!this.currentMatch!.isPlayersTurn(this)) return this.kick("Not your turn");
 
       this.currentMatch!.takeCard(this);
-      this.currentMatch!.nextTurn();
 
       this.send({
         method: "TAKE_CARD",
       });
+    });
+
+    /**
+     * Skip the current play
+     */
+    this.methodHandlers.set("SKIP", () => {
+      if (this.currentMatch === null) return this.kick("Not in a match");
+      if (!this.currentMatch!.isPlayersTurn(this)) return this.kick("Not your turn");
+      if (!this.currentMatch!.hasTakenCardAlready) return this.kick("Must take card first");
+
+      this.currentMatch!.nextTurn();
     });
   }
 

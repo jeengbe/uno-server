@@ -70,7 +70,13 @@ declare namespace Protocol {
        * Pick up a card from the draw stack
        */
       method: "TAKE_CARD";
+    } | {
+      /**
+       * Next turn
+       */
+      method: "SKIP";
     };
+
 
   type ServerToClientEvent = {
     event: "ADD_PLAYER",
